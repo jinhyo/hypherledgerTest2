@@ -24,23 +24,32 @@ func (cc *ERC20Chaincode) Init(stub shim.ChaincodeStubInterface) sc.Response {
 
 // Invoke is called as a result of an application request to run the chaincode.
 func (cc *ERC20Chaincode) Invoke(stub shim.ChaincodeStubInterface) sc.Response {
-	// GetARgs
-	args := stub.GetArgs()
-	fmt.Println("GetArgs()-args:", args)
+	fcn, params := stub.GetFunctionAndParameters()
 
-	for i, arg := range args {
-		argStr := string(arg)
-		fmt.Println("i:", i, "argStr:", argStr)
+	switch fcn {
+	case "totalSupply":
+		return cc.totalSupply(stub, params)
+	case "balanceOf":
+		return cc.balanceOf(stub, params)
+	case "transfer":
+		return cc.transfer(stub, params)
+	case "allowance":
+		return cc.allowance(stub, params)
+	case "approve":
+		return cc.approve(stub, params)
+	case "transferFrom":
+		return cc.transferFrom(stub, params)
+	case "increaseAllowance":
+		return cc.increaseAllowance(stub, params)
+	case "decreaseAllowance":
+		return cc.decreaseAllowance(stub, params)
+	case "mint":
+		return cc.mint(stub, params)
+	case "burn":
+		return cc.burn(stub, params)
+	default:
+		return sc.Response{Status: 404, Message: "404 Not Found", Payload: nil}
 	}
-
-	// GetStringArgs
-	stringArgs := stub.GetStringArgs()
-	fmt.Println(stringArgs)
-
-	// GetArgsSlice
-	argsSlice, _ := stub.GetArgsSlice()
-	fmt.Println("GetArgsSlice():", argsSlice)
-	fmt.Println("GetArgsSlice() string:", string(argsSlice))
 
 	return shim.Success(nil)
 }

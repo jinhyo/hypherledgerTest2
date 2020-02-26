@@ -26,6 +26,13 @@ type ERC20Metadata struct {
 	TotalSupply uint64 `json:"totalsupply"`
 }
 
+// TransferedEvent is the log of the event
+type TransferedEvent struct {
+	Sender          string `json:"sender"`
+	Recipient       string `json:"recipient"`
+	TransferedMoney string `json:"transferedMoney"`
+}
+
 func checkErr(err error, errMessage string) {
 	if err != nil {
 		log.Fatalln(errMessage)
@@ -66,7 +73,7 @@ func (cc *ERC20Chaincode) Init(stub shim.ChaincodeStubInterface) sc.Response {
 	err = stub.PutState(tokenName, erc20Bytes)
 	checkErr(err, "failed to PutState erc20")
 
-	// save owner balance
+	// save owner's balance
 	err = stub.PutState(owner, []byte(amount))
 	checkErr(err, "failed to PutState erc20")
 
@@ -148,7 +155,78 @@ func (cc *ERC20Chaincode) balanceOf(stub shim.ChaincodeStubInterface, params []s
 }
 
 func (cc *ERC20Chaincode) transfer(stub shim.ChaincodeStubInterface, params []string) sc.Response {
-	return shim.Success([]byte("transfer call!!!!!"))
+	// check a number of params is 3
+	if len(params) != 3 {
+		return shim.Error("the number of params must be three")
+	}
+
+	callerAddress, recipientAddress, transferedMoney := params[0], params[1], params[2]
+
+	// check amount is integer & positive
+	transferedMoneyInt, err := strconv.Atoi(transferedMoney)
+	checkErr(err, "failed to strconv.Atoi(transferedMoney)")
+
+	if transferedMoneyInt <= 0 {
+		return shim.Error("transfered money must be more than zero")
+	}
+
+	// get caller amount
+	callerAmountBytes, err := stub.GetState(callerAddress)
+	checkErr(err, "failed to stub.GetState(callerAddress)")
+	if callerAmountBytes == nil {
+		return shim.Error("callerAmountBytes does not exist in the DB")
+	}
+
+	callerAmountInt, err := strconv.Atoi(string(callerAmountBytes))
+	checkErr(err, "failed to strconv.Atoi(string(callerAmountBytes))")
+
+	// check callerReuslt transferedResult is positive
+	if callerAmountInt < transferedMoneyInt {
+		return shim.Error("caller's amount must be over the transfered money")
+	}
+
+	// get recipient amount
+	recipientAmountBytes, err := stub.GetState(recipientAddress)
+	checkErr(err, "failed to stub.GetState(recipientAddress)")
+	if recipientAmountBytes == nil {
+		recipientAmountBytes = []byte("0")
+	}
+
+	recipientAmountInt, err := strconv.Atoi(string(recipientAmountBytes))
+	checkErr(err, "failed to strconv.Atoi(string(recipientAmountBytes))")
+
+	// calculate amount
+	callerResult := callerAmountInt - transferedMoneyInt
+	recipientResult := recipientAmountInt + transferedMoneyInt
+
+	// save the caller's & recipient's amount
+	callerResultBytes, err := json.Marshal(callerResult)
+	checkErr(err, "failed to json.Marshal(callerResult)")
+
+	err = stub.PutState(callerAddress, callerResultBytes)
+	checkErr(err, "failed to stub.PutState(callerAddress, callerResultBytes)")
+
+	recipientResultBytes, err := json.Marshal(recipientResult)
+	checkErr(err, "failed to json.Marshal(recipientResult)")
+
+	err = stub.PutState(recipientAddress, recipientResultBytes)
+	checkErr(err, "failed to stub.PutState(recipientAddress, recipientResultBytes)")
+
+	// emit transfer event
+	transferedEvent := TransferedEvent{
+		Sender:          callerAddress,
+		Recipient:       recipientAddress,
+		TransferedMoney: transferedMoney}
+
+	transferedEventBytes, err := json.Marshal(transferedEvent)
+	checkErr(err, "failed to json.Marshal(transferedEvent)")
+
+	err = stub.SetEvent("transferEvent", transferedEventBytes)
+	checkErr(err, `failed to stub.SetEvent("transferEvent", transferedEventBytes)`)
+
+	fmt.Println(callerAddress + `sent ` + transferedMoney + ` to ` + recipientAddress)
+
+	return shim.Success([]byte("Transfer Success"))
 }
 
 func (cc *ERC20Chaincode) allowance(stub shim.ChaincodeStubInterface, params []string) sc.Response {

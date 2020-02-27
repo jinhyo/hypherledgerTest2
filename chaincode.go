@@ -230,11 +230,55 @@ func (cc *ERC20Chaincode) transfer(stub shim.ChaincodeStubInterface, params []st
 }
 
 func (cc *ERC20Chaincode) allowance(stub shim.ChaincodeStubInterface, params []string) sc.Response {
+	if len(params) != 3 {
+		return shim.Error("the number of the params must be three")
+	}
+
+	id, name, amount := params[0], params[1], params[2]
+
+	insuranceKey, _ := stub.CreateCompositeKey("insurance", []string{id, name})
+
+	fmt.Println("insuranceKey: " + insuranceKey)
+
+	stub.PutState(insuranceKey, []byte(amount))
+
 	return shim.Success(nil)
 }
 
 func (cc *ERC20Chaincode) approve(stub shim.ChaincodeStubInterface, params []string) sc.Response {
-	return shim.Success(nil)
+	if len(params) != 1 {
+		return shim.Error("the number of the params must be one")
+	}
+
+	type Insurance struct {
+		Name   string `json:"name"`
+		Amount string `json:"amount"`
+	}
+
+	result := []Insurance{}
+	id := params[0]
+
+	insuranceIter, _ := stub.GetStateByPartialCompositeKey("insurance", []string{id})
+
+	for insuranceIter.HasNext() {
+		insuranceKeyValue, _ := insuranceIter.Next()
+		fmt.Println("insuranceKeyValue:", insuranceKeyValue)
+		fmt.Println("insuranceKeyValue.GetNamespace():", insuranceKeyValue.GetNamespace())
+		fmt.Println("insuranceKeyValue.GetKey():", insuranceKeyValue.GetKey())
+		fmt.Println("insuranceKeyValue.GetValue():", string(insuranceKeyValue.GetValue()))
+
+		ObjectType, attrs, _ := stub.SplitCompositeKey(insuranceKeyValue.GetKey())
+		fmt.Println("ObjectType: ", ObjectType)
+		fmt.Println("attrs: ", attrs)
+
+		insurance := Insurance{Name: attrs[1], Amount: string(insuranceKeyValue.GetValue())}
+
+		result = append(result, insurance)
+	}
+
+	resultByte, _ := json.Marshal(result)
+
+	return shim.Success(resultByte)
 }
 
 func (cc *ERC20Chaincode) transferFrom(stub shim.ChaincodeStubInterface, params []string) sc.Response {

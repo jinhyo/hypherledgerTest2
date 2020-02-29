@@ -169,8 +169,8 @@ func (cc *ERC20Chaincode) balanceOf(stub shim.ChaincodeStubInterface, params []s
 	return shim.Success(balanceByte)
 }
 
-// transfer is invoke function that moves amount token.
-// from the caller's address to recipient.
+// transfer is invoke function that moves amount token /
+// from the caller's address to recipient /
 // params - caller's address, recipient's address, amount of token.
 func (cc *ERC20Chaincode) transfer(stub shim.ChaincodeStubInterface, params []string) sc.Response {
 	// check a number of params is 3
@@ -247,9 +247,9 @@ func (cc *ERC20Chaincode) transfer(stub shim.ChaincodeStubInterface, params []st
 	return shim.Success([]byte("Transfer Success"))
 }
 
-// allowance is query function
-// params - owner's address, spender's address
-// Returns the remaining amount of token to invoke {transferFrom}
+// allowance is query function /
+// params - owner's address, spender's address /
+// Returns the remaining amount of token to invoke {transferFrom}.
 func (cc *ERC20Chaincode) allowance(stub shim.ChaincodeStubInterface, params []string) sc.Response {
 	// check the number of the params is 2
 	if len(params) != 2 {
@@ -272,9 +272,9 @@ func (cc *ERC20Chaincode) allowance(stub shim.ChaincodeStubInterface, params []s
 	return shim.Success(allowanceAmount)
 }
 
-// approve is invoke function that Sets amount as the allowance
-// of spender over the owner tokens
-// params - owner's address, spender's address, amount of token
+// approve is invoke function that Sets amount as the allowance /
+// of spender over the owner tokens /
+// params - owner's address, spender's address, amount of token.
 func (cc *ERC20Chaincode) approve(stub shim.ChaincodeStubInterface, params []string) sc.Response {
 	// check the number of params is three
 	if len(params) != 3 {
@@ -359,22 +359,68 @@ func (cc *ERC20Chaincode) approvalList(stub shim.ChaincodeStubInterface, params 
 	return shim.Success(approvalSliceByte)
 }
 
+// transferFrom is invoke function that Moves amount of tokens from sender(owner) to recipient.
+// using allowance of spender.
+// parmas - owner's address, spender's address, recipient's address, amount of token.
 func (cc *ERC20Chaincode) transferFrom(stub shim.ChaincodeStubInterface, params []string) sc.Response {
 	// check the number of parmas is 4
+	if len(params) != 4 {
+		return shim.Error("the number of params must be four")
+	}
+
+	ownerAddress, spenderAddress, recipientAddress, amount := params[0], params[1], params[2], params[3]
 
 	// check amount is integer & positive
+	amountInt := strconv.Atoi(amount)
+	if amountInt <= 0 {
+		return shim.Error("amount must be more than zero")
+	}
 
-	// get allowance
+	// get allowance of spender and recipient
+	spenderAllowanceResponse := cc.allowance(stub, []string{ownerAddress, spenderAddress})
+	if spenderAllowanceResponse.Status >= 400 {
+		return shim.Error(`failed to cc.allowance([]string{ownerAddress, spenderAddress}), err: ` + spenderAllowanceResponse.GetMessage())
+	}
 
-	// convert allowance response paylaod to allowance data
+	recipientAllowanceResponse := cc.allowance(stub, []string{ownerAddress, recipientAddress})
+	if recipientAllowanceResponse.Status >= 400 {
+		return shim.Error(`failed to cc.allowance([]string{ownerAddress, spenderAddress}), err: ` + recipientAllowanceResponse.GetMessage())
+	}
+
+	// convert allowance response paylaod to allowance data(int)
+	spenderAllowanceStr := string(recipientAllowance.GetPayload())
+	spenderAllowanceInt, err := strconv.Atoi(spenderAllowanceStr)
+	checkErr(err, `failed to strconv.Atoi(spenderAllowanceStr)`)
+
+	recipientAllowanceStr := string(recipientAllowance.GetPayload())
+	recipientAllowanceInt, err := strconv.Atoi(recipientAllowanceStr)
+	checkErr(err, `failed to strconv.Atoi(recipientAllowanceStr)`)
 
 	// transfer from owner to recipient
+	transferResponse := cc.transfer(stub, []string{spenderAddress, recipientAddress, amount})
+	if transferResponse.Status >= 400 {
+		return shim.Error(`failed to cc.transfer([]string{spenderAddress, recipientAddress, amount}), err: ` + transferResponse.GetMessage())
+	}
 
-	// decrease allowance amount
+	// decrease & increase allowance amount
+	spenderAllowanceInt -= amountInt
+	recipientAllowanceInt += amountInt
 
 	// approve amount of tokens transfered
+	spenderAllowanceStr := strconv.Itoa(spenderAllowanceInt)
+	recipientAllowanceStr := strconv.Itoa(recipientAllowanceInt)
 
-	return shim.Success(nil)
+	Res := cc.approve(stub, []string{ownerAddress, spenderAddress, spenderAllowanceStr})
+	if Res.Status >= 400 {
+		return shim.Error(`failed to cc.approve(ownerAddress, spenderAddress, spenderAllowanceStr), err: ` + Res.GetMessage())
+	}
+
+	Res = cc.approve(stub, []string{ownerAddress, recipientAddress, recipientAllowanceStr})
+	if Res.Status >= 400 {
+		return shim.Error(`failed to cc.approve(ownerAddress, recipientAddress, recipientAllowanceStr), err: ` + Res.GetMessage())
+	}
+
+	return shim.Success([]byte{"transferFrom func success"}])
 }
 
 func (cc *ERC20Chaincode) increaseAllowance(stub shim.ChaincodeStubInterface, params []string) sc.Response {

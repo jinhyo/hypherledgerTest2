@@ -169,9 +169,9 @@ func (cc *ERC20Chaincode) balanceOf(stub shim.ChaincodeStubInterface, params []s
 	return shim.Success(balanceByte)
 }
 
-// transfer is invoke function that moves amount token
-// from the caller's address to recipient
-// params - caller's address, recipient's address, amount of token
+// transfer is invoke function that moves amount token.
+// from the caller's address to recipient.
+// params - caller's address, recipient's address, amount of token.
 func (cc *ERC20Chaincode) transfer(stub shim.ChaincodeStubInterface, params []string) sc.Response {
 	// check a number of params is 3
 	if len(params) != 3 {
@@ -309,26 +309,71 @@ func (cc *ERC20Chaincode) approve(stub shim.ChaincodeStubInterface, params []str
 	return shim.Success([]byte("allowance success"))
 }
 
+// approvalList is a query function.
+// params - owner's address.
+// Returns the approval list approved by owner.
 func (cc *ERC20Chaincode) approvalList(stub shim.ChaincodeStubInterface, params []string) sc.Response {
 	// check the number of the parameters is one
 	if len(params) != 1 {
 		return shim.Error("the number of params must be one")
 	}
 
+	ownerAddress := params[0]
+
 	// get all approval list (format is iterator)
+	approvalIter, err := stub.GetStateByPartialCompositeKey("approval", []string{ownerAddress})
+	checkErr(err, `failed to stub.GetStateByPartialCompositeKey("approval", []string{ownerAddress})`)
 
 	// make slice for return value
+	approvalSlice := []ApprovalEvent{}
 
 	// iterator
-	// - get spender address
-	// - get amount
-	// - add approval result
+	for approvalIter.HasNext() {
+		approvalKeyValue, err := approvalIter.Next()
+		checkErr(err, `failed to approvalIter.Next()`)
+
+		_, addresses, err := stub.SplitCompositeKey(approvalKeyValue.GetKey())
+		checkErr(err, `failed to stub.SplitCompositeKey(approvalKeyValue.GetKey())`)
+
+		// - get spender address
+		spenderAddress := addresses[1]
+
+		// - get amount
+		amount := approvalKeyValue.GetValue()
+		if amount == nil {
+			return shim.Error("amount does not exist in the ledger")
+		}
+
+		// - add approval result
+		amountInt, err := strconv.Atoi(string(amount))
+		checkErr(err, `failed to strconv.Atoi(string(amount))`)
+
+		approval := ApprovalEvent{ownerAddress, spenderAddress, amountInt}
+		approvalSlice = append(approvalSlice, approval)
+	}
 
 	// convert approvalList to []byte for return
+	approvalSliceByte, err := json.Marshal(approvalSlice)
+	checkErr(err, `failed to json.Marshal(approvalSlice)`)
 
+	return shim.Success(approvalSliceByte)
 }
 
 func (cc *ERC20Chaincode) transferFrom(stub shim.ChaincodeStubInterface, params []string) sc.Response {
+	// check the number of parmas is 4
+
+	// check amount is integer & positive
+
+	// get allowance
+
+	// convert allowance response paylaod to allowance data
+
+	// transfer from owner to recipient
+
+	// decrease allowance amount
+
+	// approve amount of tokens transfered
+
 	return shim.Success(nil)
 }
 
